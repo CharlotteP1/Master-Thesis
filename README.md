@@ -1,2 +1,2 @@
-# Master-Thesis
-Modeling Cancer Dynamics, 2024
+# Master Thesis
+Modelling cancer dynamics during therapy from liquid biopsy measurements
