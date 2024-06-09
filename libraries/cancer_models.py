@@ -1,6 +1,47 @@
 import numpy as np
 from scipy.integrate import odeint
 
+'''
+Models acronyms:
+- exp = Exponential
+- log = Logistic
+- gomp = Gompertz
+- bert = Bertalanffy
+- exp_stairs = Exponential stairs
+- bert_stairs = Bertalanffy stairs
+- sls = S-LS model
+- sls* = S-LS*
+- slsv2 = S-LS version described in eq. 4.3 of the thesis
+- fs_exp = Fast-Slow Exponential
+
+
+This files contains:
+- the definition of all the ODE models used in the thesis
+- the loglikelihood e.g. the objective functions for all the models
+- wrappers to merge togheter the different models
+- wrappers to make the objective function compatible with Pyswarms'PSO
+
+
+The main functions are:
+- model_wrapper(model_name,pars,y_obs,times,drug_times,dt=0.1):
+    which takes in input the name of the model, its parameters, the first observation [y_obs(0)],
+    the times over which to compute the trajectory (can also be [t_{last}]), and drug_times if the model
+    actively includes treatment otherwise put drug_times=None
+
+- objective_wrapper(pars,model_name,times,y_obs,drug_times,dt=0.1):
+    which takes in input the parameters with which to calculate the log-likelihood, the name of the model,
+    the times of the observations, the observed data y_obs, and the drug_times if the model actively includes treatment
+    otherwise put drug_times=None
+
+- super_Q_wrapper(pars,model_name,times,y_obs,drug_times,dt=0.1):
+    works the same as the previous function (objective_wrapper), with the difference that it takes in input an array of
+    different parameters e.g. pars = [paramter_set_1, parameters_set_2, ...] to be compatible with PySwarm's PSO algorithm
+
+- get_bounds(model_name,y_obs_0=0):
+    returns a list of the boundaries for the selected model, y_obs_0 is y_obs(0) used by the models that treat the first
+    measurements as an optimizable parameter (otherwise put y_obs_0=0 or do nothing)
+
+'''
 #HYPERGENERIC PARAMETERS
 eps = 0.01
 
@@ -27,6 +68,7 @@ def model_1D(params,times,func,dt=0.1):
 
     y = odeint(func,y0=params[0],t=time_span,args=(params[1:],)).reshape(-1)
     return y
+
     
 #Exponential stairs model as described in the thesis:
 def model_exp_stairs(params,times,drug_times,dt=0.1):
@@ -264,7 +306,7 @@ def model_wrapper(model_name,pars,y_obs,times,drug_times,dt=0.1):
         
         
 
-#GENERAL GAUSSIAN LOG-LIKELIHOOD
+#GENERAL GAUSSIAN LOG-LIKELIHOOD, NOTE: the values are already "ln-ed"
 def log_likelihood(sigma,y_obs,y_pred,n=None):
   if n == None:
       n = len(y_obs)
@@ -358,18 +400,17 @@ def super_Q_wrapper_no_sigma(pars,model_name,times,y_obs,drug_times,dt=0.1):
 #BOUNDS:
 def get_bounds(model_name,y_obs_0=0):
   #model specific:
-  model_bounds = {"exp":[(0.01, 10), (y_obs_0*0.8, y_obs_0*1.2), (0,2)], 
-                  "log":[(0.01, 10), (y_obs_0*0.8, y_obs_0*1.2), (0,2), (0.001,5)], 
-                  "bert":[(0.01, 10), (y_obs_0*0.8, y_obs_0*1.2), (0,5), (0,5)], 
-                  "gomp":[(0.01, 10), (y_obs_0*0.8, y_obs_0*1.2), (0,1.2), (0,15)], 
-                  "exp_stairs":[(0.01, 10), (y_obs_0*0.8, y_obs_0*1.2), (0,5), (0,2)], 
-                  "bert_stairs":[(0.01, 10), (y_obs_0*0.8, y_obs_0*1.2), (0,1), (10**-4,1), (0,5)],
+  model_bounds = {"exp":[(0.01, 10), (y_obs_0*0.8, y_obs_0*1.2), (0,2)], #sigma, y_pred(0), r
+                  "log":[(0.01, 10), (y_obs_0*0.8, y_obs_0*1.2), (0,2), (0.001,5)], #sigma, y_pred(0), r, K
+                  "bert":[(0.01, 10), (y_obs_0*0.8, y_obs_0*1.2), (0,5), (0,5)], #sigma, y_pred(0), r, delta
+                  "gomp":[(0.01, 10), (y_obs_0*0.8, y_obs_0*1.2), (0,1.2), (0,15)],  #sigma, y_pred(0), r, delta
+                  "exp_stairs":[(0.01, 10), (y_obs_0*0.8, y_obs_0*1.2), (0,5), (0,2)], #sigma, y_pred(0), delta, r
+                  "bert_stairs":[(0.01, 10), (y_obs_0*0.8, y_obs_0*1.2), (0,1), (10**-4,1), (0,5)],#sigma, y_pred(0), r, delta, delta_1
 
-                  "sls":[(0.01, 10), (0.85, 1), (1, 2), (1,10),(0.001,1),(1,30)],
-                  "sls*":[(0.01, 10), (0.85, 1), (1,10),(0.001,1),(1,30)], 
-                  "slsv2":[(0.01, 10), (0.85, 1), (0,10),(0,0.01),(1,30)], 
-                  "fs_exp":[(0.01, 10), (0.92, 1),(0,5),(1,55)]}
+                  "sls":[(0.01, 10), (0.85, 1), (1, 2), (1,10),(0.001,1),(1,30)], #sigma, S_0, K, delta_0, r_R_0, C
+                  "sls*":[(0.01, 10), (0.85, 1), (1,10),(0.001,1),(1,30)], #sigma, S_0, delta_0, r_R_0, C
+                  "slsv2":[(0.01, 10), (0.85, 1), (0,10),(0,0.01),(1,30)], #sigma, S_0, delta_0, r_R_0, C
+                  "fs_exp":[(0.01, 10), (0.92, 1),(0,5),(1,55)]}  #sigma, S_0, delta, C
 
-  
   return np.array(model_bounds[model_name])
   
