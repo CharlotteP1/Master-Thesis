@@ -40,7 +40,6 @@ The main functions are:
 - get_bounds(model_name,y_obs_0=0):
     returns a list of the boundaries for the selected model, y_obs_0 is y_obs(0) used by the models that treat the first
     measurements as an optimizable parameter (otherwise put y_obs_0=0 or do nothing)
-
 '''
 #HYPERGENERIC PARAMETERS
 eps = 0.01
